@@ -1,68 +1,65 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Oct 28 21:55:54 2018
+
+@author: KTJ
+"""
+
+#%%
 from PIL import Image
+import numpy as np
 import bayespy
 
 HH = Image.open('HH.tiff')
-HH.show() # opens the tiff image. this rainbow color tiff
 HV = Image.open('HV.tiff')
-HV.show() # opens the tiff image. this rainbow color tiff
+#%%
+HH.show()
+#%%
+HV.show()
+#%%
+# import tifffile as tiff
 
-import numpy as np
-HV = np.array(HV)
-HH = np.array(HH)
-print(np.shape(HV))
-print(np.max(HH),np.max(HV))
+#%%
+#a = tiff.imread('HH.tiff')
+#a.shape
+HH.size
+#%%
+#%%
+HV_np= np.array(HV)
+HH_np= np.array(HH)
+D=c=np.dstack((HH_np, HV_np))
+D.shape
+#%%
+m,n,d=D.shape
+#%%
+alpha0=0.001       #hyperparameter
+beta0=1-alpha0     #hyperparameter
+E=bayespy.nodes.Beta([alpha0,beta0],plates=(m,n),name='E')
+#%%
+K=5                     #hyperparameter
+neta=1e-6*np.ones(K)    #hyperparameter
+print(neta.shape)
+print(neta)
+PI=bayespy.nodes.Dirichlet(neta,name='PI')  
+#%%
+Z=bayespy.nodes.Categorical(PI,plates=(m,n,K),name='Z')
 
-m=np.shape(HH)[0]
-n=np.shape(HH)[1]
+mean_vec=np.zeros(d)  # to be initialized accorinding to image
+precission_mat=1e-5*np.identity(d)     # to be initialized accorinding to image
+mu=bayespy.nodes.Gaussian(mean_vec,precission_mat,plates=(K,),name='U')
 
-D=np.zeros((m,n,2))  #Image Tensor
-D[:,:,0]=HV
-D[:,:,1]=HH
+Lambda=bayespy.nodes.Wishart(d,precission_mat,plates=(K,),name='Lambda')
 
-K = 5 #No. of clusters
+C=bayespy.nodes.Mixture(Z,bayespy.nodes.Gaussian,mu,Lambda,name='C')
+#%%
+A=bayespy.nodes.Bernoulli(E,plates=(m,n),name='A')
+#%%
+# Initializations A,C and related paameters then initialization of all bayespy.nodes objects and mean_vec,precission_mat
 
-#Initialization of Latent Variables
-A=np.zeros((m,n))
-E=np.zeros((m,n))
-U=np.zeros((m,n))
-M=np.zeros((m,n))
-Z=np.zeros((m,n))
-pi=np.zeros((m,n))
-phi=np.zeros((m,n))
+#%%
+Model=bayespy.inference.VB(A,E,mu,Lambda,C,PI)
+#%%
+Model.update(repeat=5)
+#%%
 
-from bayespy import nodes
-mu = nodes.Gaussian ( np . zeros (D) , 0.01* np . identity ( D ) , plates =( K ,) )
-Lambda = nodes . Wishart (D , D * np . identity ( D ) , plates =( K ,) )
-
-alpha = nodes . Dirichlet (0.01* np . ones ( K ) )
-Z = nodes . Categorical ( alpha , plates =(M,))
-
-y = nodes . Mixture (Z, nodes.Gaussian , mu , Lambda )
-y . observe (D)
-
-from bayespy . inference import VB
-Q = VB (y , mu , Z , Lambda , alpha )
-
-Z . initialize_from_random ()
-Q . update ( repeat =10) 
-
-import bayespy . plot as bpplt
-bpplt . gaussian_mixture_2d (y , alpha = alpha )
-bpplt . pyplot . show ()
-print ( alpha )
-
-def Update(A):
-    return A
-
-def Calculate(A):
-    return A
-
-for i in range(10):
-    A=Update(A)
-    E=Update(E)
-    U=Update(U)
-    M=Update(M)
-    Z=Update(Z)
-    pi=Update(pi)
-    
-Calculate(A)
+#%%
